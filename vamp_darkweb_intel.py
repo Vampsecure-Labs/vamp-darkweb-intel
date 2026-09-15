@@ -131,7 +131,7 @@ class TargetResult:
         if self.critical():   return "CRITICAL"
         if self.high():       return "HIGH"
         if any(f.severity == "MEDIUM" for f in self.findings): return "MEDIUM"
-        if self.findings:     return "LOW"
+        if any(f.severity == "LOW"    for f in self.findings): return "LOW"
         return "CLEAN"
 
     def risk_color(self) -> str:
