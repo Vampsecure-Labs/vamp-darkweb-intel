@@ -43,12 +43,14 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from rich.console import Console
@@ -60,7 +62,7 @@ from rich import box
 # Constantes
 # ---------------------------------------------------------------------------
 
-VERSION   = "1.0"
+VERSION   = "1.1.0"
 TOOL_NAME = "vamp-darkweb-intel"
 
 _TIMEOUT = 12  # segundos por petición
@@ -907,6 +909,94 @@ def _to_html(results: List[TargetResult]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Modo monitor continuo (v1.1.0)
+# ---------------------------------------------------------------------------
+
+def run_monitor_mode(args) -> None:
+    """
+    Daemon de vigilancia dark web. Re-escanea periódicamente el/los objetivo(s) y
+    alerta de nuevas menciones o filtraciones entre ciclos.
+    Persiste el estado en ~/.config/vampsec/darkweb-state-<target>.json.
+    Sale con Ctrl+C.
+    """
+    # Usar el primer objetivo para la clave del fichero de estado
+    _target_key = (args.targets[0] if args.targets else "generic").replace(".", "_").replace("/", "_")
+    state_file = Path.home() / ".config" / "vampsec" / f"darkweb-state-{_target_key}.json"
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Cargar estado previo (dict {id: hallazgo})
+    estado_prev: dict = {}
+    if state_file.exists():
+        try:
+            estado_prev = json.loads(state_file.read_text())
+        except Exception:
+            pass
+
+    _console.print(
+        f"[bold]Modo monitor darkweb activo — intervalo {args.monitor}s — Ctrl+C para salir[/]"
+    )
+    if args.monitor < 3600:
+        _console.print(
+            "[yellow]Aviso: se recomienda --monitor >= 3600 (1h) para no saturar fuentes[/]"
+        )
+
+    while True:
+        try:
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            _console.print(f"[dim]── Ciclo de vigilancia {ts} ──[/]")
+
+            engine   = DarkwebIntelEngine(timeout=args.timeout, workers=args.workers)
+            resultados: list = []
+
+            for target in args.targets:
+                result = engine.scan(target, args.type)
+                for f in result.findings:
+                    hallazgo_id = f"{target}:{f.source}:{f.category}:{f.name[:40]}"
+                    resultados.append({
+                        "id":       hallazgo_id,
+                        "target":   target,
+                        "source":   f.source,
+                        "severity": f.severity,
+                        "name":     f.name,
+                    })
+
+            # Detectar cambios
+            nuevos    = [h for h in resultados if h["id"] not in estado_prev]
+            resueltos = [h_id for h_id in estado_prev
+                         if h_id not in {h["id"] for h in resultados}]
+
+            if nuevos:
+                _console.print(f"[red bold]⚠ {len(nuevos)} nueva(s) mención/filtración(es)[/]")
+                for h in nuevos:
+                    _console.print(
+                        f"  [red]+ [{h.get('severity','?')}] "
+                        f"{h.get('source','?')} — {h.get('name','?')[:80]}[/]"
+                    )
+            if resueltos:
+                _console.print(f"[green]✔ {len(resueltos)} hallazgo(s) ya no detectado(s)[/]")
+            if not nuevos and not resueltos:
+                _console.print(
+                    f"[dim]Sin nuevas menciones — {len(resultados)} hallazgos activos[/]"
+                )
+
+            # Guardar estado actual
+            estado_prev = {h["id"]: h for h in resultados}
+            state_file.write_text(
+                json.dumps(estado_prev, indent=2, ensure_ascii=False)
+            )
+
+            _console.print(
+                f"[dim]Próximo check en {args.monitor}s "
+                f"({datetime.now().strftime('%H:%M:%S')})[/]"
+            )
+            time.sleep(args.monitor)
+
+        except KeyboardInterrupt:
+            _console.print("[yellow]Monitor detenido.[/]")
+            break
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -942,6 +1032,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--csv",  metavar="FILE", dest="out_csv",
                    help="Exportar resumen CSV.")
     p.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
+    p.add_argument("--monitor", metavar="SEGUNDOS", type=int, default=0,
+                   help="Polling continuo: re-escanear cada N segundos y alertar de nuevas "
+                        "menciones/filtraciones (recomendado: >= 3600 para no saturar fuentes)")
     return p
 
 
@@ -952,12 +1045,23 @@ def main() -> None:
     # Recoger objetivos
     targets: List[str] = list(args.targets)
     if args.file:
-        fp = Path(args.file) if 'Path' in dir() else __import__('pathlib').Path(args.file)
-        targets += [l.strip() for l in fp.read_text().splitlines() if l.strip() and not l.startswith("#")]
+        targets += [
+            l.strip()
+            for l in Path(args.file).read_text().splitlines()
+            if l.strip() and not l.startswith("#")
+        ]
 
     if not targets:
         p.print_help()
         sys.exit(0)
+
+    # Asignar targets al namespace (necesario para el monitor)
+    args.targets = targets
+
+    # ── Modo monitor continuo ─────────────────────────────────────────────────
+    if args.monitor > 0:
+        run_monitor_mode(args)
+        return
 
     engine  = DarkwebIntelEngine(timeout=args.timeout, workers=args.workers)
     results: List[TargetResult] = []

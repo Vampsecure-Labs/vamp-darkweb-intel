@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vamp-darkweb-intel"
-version = "1.0.0"
+version = "1.1.0"
 description = "Darkweb & threat intelligence CLI — cross-source IOC lookup with automatic correlation across ThreatFox, URLhaus, MalwareBazaar, RansomLook, GreyNoise, Shodan and more"
 readme = "README.md"
 license = { text = "MIT" }
