@@ -1,3 +1,4 @@
+<!-- © VampSecure Studios — VampSecure Labs Security Research Division -->
 <h1 align="center">vamp-darkweb-intel</h1>
 
 <p align="center">
@@ -57,6 +58,8 @@ Or via PyPI:
 
 ```bash
 pip install vamp-darkweb-intel
+# o con Homebrew:
+brew install vampsecure-labs/labs/vamp-darkweb-intel
 ```
 
 ## Try it now
@@ -201,3 +204,6 @@ Use exclusively on systems you own or for which you hold explicit written author
 ---
 
 © VampSecure Studios — VampSecure Labs Security Research Division
+
+## Versión
+v1.0.0 — VampSecure Labs Security Research Division
