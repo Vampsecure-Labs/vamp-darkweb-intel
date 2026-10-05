@@ -1,11 +1,9 @@
 # © VampSecure Studios — VampSecure Labs Security Research Division
 """Tests unitarios para vamp-darkweb-intel."""
 
-import json
-import pytest
-from unittest.mock import patch, MagicMock
-import sys
 import os
+import sys
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

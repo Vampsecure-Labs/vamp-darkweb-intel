@@ -44,19 +44,17 @@ import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
-import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 from rich import box
+from rich.console import Console
+from rich.table import Table
 
 # ---------------------------------------------------------------------------
 # Constantes
@@ -113,19 +111,19 @@ class Finding:
 class TargetResult:
     target:      str
     target_type: str                     # domain | ip | hash | url
-    findings:    List[Finding]           = field(default_factory=list)
-    raw_sources: Dict[str, object]       = field(default_factory=dict)
-    error:       Optional[str]           = None
+    findings:    list[Finding]           = field(default_factory=list)
+    raw_sources: dict[str, object]       = field(default_factory=dict)
+    error:       str | None           = None
     scan_time:   str                     = ""
 
     # ---------- helpers ----------
     def add(self, f: Finding) -> None:
         self.findings.append(f)
 
-    def critical(self) -> List[Finding]:
+    def critical(self) -> list[Finding]:
         return [f for f in self.findings if f.severity == "CRITICAL"]
 
-    def high(self) -> List[Finding]:
+    def high(self) -> list[Finding]:
         return [f for f in self.findings if f.severity == "HIGH"]
 
     def summary_grade(self) -> str:
@@ -145,7 +143,7 @@ class TargetResult:
 # Utilidades de red
 # ---------------------------------------------------------------------------
 
-def _get(url: str, headers: Optional[Dict] = None, timeout: int = _TIMEOUT) -> dict | str | None:
+def _get(url: str, headers: dict | None = None, timeout: int = _TIMEOUT) -> dict | str | None:
     """GET HTTP → JSON o texto plano; None en caso de error."""
     req = urllib.request.Request(url, headers=headers or {})
     req.add_header("User-Agent", f"VampSecure-Labs/{TOOL_NAME}/{VERSION}")
@@ -173,7 +171,7 @@ def _post_json(url: str, payload: dict, timeout: int = _TIMEOUT) -> dict | None:
         return None
 
 
-def _post_form(url: str, fields: Dict[str, str], timeout: int = _TIMEOUT) -> dict | None:
+def _post_form(url: str, fields: dict[str, str], timeout: int = _TIMEOUT) -> dict | None:
     """POST form-urlencoded → JSON; None en caso de error."""
     data = urllib.parse.urlencode(fields).encode("utf-8")
     req  = urllib.request.Request(url, data=data, method="POST")
@@ -214,9 +212,9 @@ def detect_target_type(target: str) -> str:
 # Fuentes de threat intelligence
 # ---------------------------------------------------------------------------
 
-def _source_threatfox(target: str, target_type: str) -> List[Finding]:
+def _source_threatfox(target: str, target_type: str) -> list[Finding]:
     """ThreatFox (abuse.ch) — IOCs por dominio, IP, URL o hash."""
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     payload  = {"query": "search_ioc", "search_term": target}
     data     = _post_json(_THREATFOX_API, payload)
     if not data or data.get("query_status") not in ("ok", "no_result"):
@@ -258,9 +256,9 @@ def _source_threatfox(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_urlhaus(target: str, target_type: str) -> List[Finding]:
+def _source_urlhaus(target: str, target_type: str) -> list[Finding]:
     """URLhaus (abuse.ch) — URLs y hosts maliciosos."""
-    findings: List[Finding] = []
+    findings: list[Finding] = []
 
     if target_type == "url":
         data = _post_form(_URLHAUS_URL_API, {"url": target})
@@ -297,11 +295,11 @@ def _source_urlhaus(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_malwarebazaar(target: str, target_type: str) -> List[Finding]:
+def _source_malwarebazaar(target: str, target_type: str) -> list[Finding]:
     """MalwareBazaar (abuse.ch) — búsqueda por hash."""
     if target_type != "hash":
         return []
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     data = _post_form(_BAZAAR_API, {"query": "get_info", "hash": target})
     if not data or data.get("query_status") != "ok":
         return findings
@@ -326,12 +324,12 @@ def _source_malwarebazaar(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_ransomlook(target: str, target_type: str) -> List[Finding]:
+def _source_ransomlook(target: str, target_type: str) -> list[Finding]:
     """RansomLook — víctimas de ransomware por dominio o nombre."""
     if target_type not in ("domain", "url"):
         return []
 
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     domain = target.lower().split("/")[0]
     data   = _get(_RANSOMLOOK_RECENT)
 
@@ -339,7 +337,7 @@ def _source_ransomlook(target: str, target_type: str) -> List[Finding]:
         return findings
 
     # RansomLook devuelve un dict de grupos con listas de posts
-    matches: List[Tuple[str, str, str]] = []   # (grupo, descripción, fecha)
+    matches: list[tuple[str, str, str]] = []   # (grupo, descripción, fecha)
     for group_name, posts in data.items():
         if not isinstance(posts, list):
             continue
@@ -365,12 +363,12 @@ def _source_ransomlook(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_ransomwarelive(target: str, target_type: str) -> List[Finding]:
+def _source_ransomwarelive(target: str, target_type: str) -> list[Finding]:
     """Ransomware.live — víctimas recientes por dominio."""
     if target_type not in ("domain", "url"):
         return []
 
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     domain = target.lower().split("/")[0].replace("www.", "")
     base   = domain.split(".")[0]
     data   = _get(_RANSOMWARELIVE_API)
@@ -400,12 +398,12 @@ def _source_ransomwarelive(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_greynoise(target: str, target_type: str) -> List[Finding]:
+def _source_greynoise(target: str, target_type: str) -> list[Finding]:
     """GreyNoise Community — contexto de IP (sin clave API)."""
     if target_type != "ip":
         return []
 
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     data = _get(_GREYNOISE_COMM.format(ip=target))
 
     if not isinstance(data, dict):
@@ -456,12 +454,12 @@ def _source_greynoise(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_shodan_internetdb(target: str, target_type: str) -> List[Finding]:
+def _source_shodan_internetdb(target: str, target_type: str) -> list[Finding]:
     """Shodan InternetDB — puertos, etiquetas y CVEs de IP (sin auth)."""
     if target_type != "ip":
         return []
 
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     data = _get(_SHODAN_INTERNETDB.format(ip=target))
 
     if not isinstance(data, dict) or "ip" not in data:
@@ -507,9 +505,9 @@ def _source_shodan_internetdb(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_otx(target: str, target_type: str) -> List[Finding]:
+def _source_otx(target: str, target_type: str) -> list[Finding]:
     """AlienVault OTX — pulsos de inteligencia."""
-    findings: List[Finding] = []
+    findings: list[Finding] = []
 
     api_key = os.getenv("OTX_API_KEY", "")
     headers  = {"X-OTX-API-KEY": api_key} if api_key else {}
@@ -557,11 +555,11 @@ def _source_otx(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_hackertarget_geo(target: str, target_type: str) -> List[Finding]:
+def _source_hackertarget_geo(target: str, target_type: str) -> list[Finding]:
     """HackerTarget — geolocalización de IP (contexto INFO)."""
     if target_type != "ip":
         return []
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     raw = _get(_HACKERTARGET_GEO.format(ip=target))
     if not isinstance(raw, str) or "error" in raw.lower():
         return findings
@@ -576,14 +574,14 @@ def _source_hackertarget_geo(target: str, target_type: str) -> List[Finding]:
     return findings
 
 
-def _source_hibp(target: str, target_type: str) -> List[Finding]:
+def _source_hibp(target: str, target_type: str) -> list[Finding]:
     """Have I Been Pwned — brechas de dominio (requiere HIBP_API_KEY)."""
     if target_type != "domain":
         return []
     api_key = os.getenv("HIBP_API_KEY", "")
     if not api_key:
         return []
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     url  = _HIBP_DOMAIN.format(domain=target)
     data = _get(url, headers={"hibp-api-key": api_key, "user-agent": f"vamp-darkweb-intel/{VERSION}"})
     if not isinstance(data, dict):
@@ -606,18 +604,18 @@ def _source_hibp(target: str, target_type: str) -> List[Finding]:
 # Motor de correlación
 # ---------------------------------------------------------------------------
 
-def _correlate(findings: List[Finding]) -> List[Finding]:
+def _correlate(findings: list[Finding]) -> list[Finding]:
     """
     Escala severidad de hallazgos duplicados entre fuentes.
     Si una IOC aparece en ≥2 fuentes independientes, el hallazgo de mayor
     severidad sube un nivel (max: CRITICAL).
     """
-    categories: Dict[str, List[Finding]] = {}
+    categories: dict[str, list[Finding]] = {}
     for f in findings:
         key = f.category
         categories.setdefault(key, []).append(f)
 
-    upgraded: List[Finding] = []
+    upgraded: list[Finding] = []
     for cat_findings in categories.values():
         # Fuentes únicas que reportan esta categoría
         sources = {f.source for f in cat_findings}
@@ -671,7 +669,7 @@ class DarkwebIntelEngine:
         self._timeout = timeout
         self._workers = workers
 
-    def scan(self, target: str, target_type: Optional[str] = None) -> TargetResult:
+    def scan(self, target: str, target_type: str | None = None) -> TargetResult:
         target      = target.strip()
         target_type = target_type or detect_target_type(target)
         result      = TargetResult(
@@ -680,7 +678,7 @@ class DarkwebIntelEngine:
             scan_time   = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         )
 
-        all_findings: List[Finding] = []
+        all_findings: list[Finding] = []
 
         with ThreadPoolExecutor(max_workers=self._workers) as pool:
             futures = {pool.submit(fn, target, target_type): fn.__name__ for fn in _ALL_SOURCES}
@@ -749,7 +747,7 @@ def _print_result(result: TargetResult) -> None:
 # Exportadores
 # ---------------------------------------------------------------------------
 
-def _to_json(results: List[TargetResult]) -> str:
+def _to_json(results: list[TargetResult]) -> str:
     def _finding_dict(f: Finding) -> dict:
         return {
             "severity": f.severity, "source": f.source, "category": f.category,
@@ -767,8 +765,8 @@ def _to_json(results: List[TargetResult]) -> str:
     return json.dumps(out, indent=2, ensure_ascii=False)
 
 
-def _to_markdown(results: List[TargetResult]) -> str:
-    lines: List[str] = [
+def _to_markdown(results: list[TargetResult]) -> str:
+    lines: list[str] = [
         "# vamp-darkweb-intel — Informe de Threat Intelligence",
         "",
         f"Generado: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}  ",
@@ -811,7 +809,7 @@ def _to_markdown(results: List[TargetResult]) -> str:
     return "\n".join(lines)
 
 
-def _to_csv(results: List[TargetResult]) -> str:
+def _to_csv(results: list[TargetResult]) -> str:
     import io
     buf  = io.StringIO()
     w    = csv.writer(buf)
@@ -826,7 +824,7 @@ def _to_csv(results: List[TargetResult]) -> str:
     return buf.getvalue()
 
 
-def _to_html(results: List[TargetResult]) -> str:
+def _to_html(results: list[TargetResult]) -> str:
     """Informe HTML dark-theme standalone."""
     rows_html = ""
     for r in results:
@@ -1043,7 +1041,7 @@ def main() -> None:
     args = p.parse_args()
 
     # Recoger objetivos
-    targets: List[str] = list(args.targets)
+    targets: list[str] = list(args.targets)
     if args.file:
         targets += [
             l.strip()
@@ -1064,7 +1062,7 @@ def main() -> None:
         return
 
     engine  = DarkwebIntelEngine(timeout=args.timeout, workers=args.workers)
-    results: List[TargetResult] = []
+    results: list[TargetResult] = []
 
     for target in targets:
         result = engine.scan(target, args.type)
