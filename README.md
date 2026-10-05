@@ -7,6 +7,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License MIT"/>
   <img src="https://img.shields.io/badge/VampSecure-Labs-magenta" alt="VampSecure Labs"/>
   <img src="https://img.shields.io/badge/API%20keys-optional-brightgreen" alt="API keys optional"/>
+  <img src="https://github.com/Vampsecure-Labs/vamp-darkweb-intel/actions/workflows/ci.yml/badge.svg" alt="CI"/>
 </p>
 
 ## Overview
