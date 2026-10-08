@@ -191,6 +191,74 @@ jobs:
 | LOW | Mentioned in old intelligence · minor open port surface |
 | INFO | Geolocation data · known-good infrastructure (RIOT) |
 
+## Sample Output
+
+```bash
+$ python3 vamp_darkweb_intel.py -t 192.0.2.47 -t malware-sample.example.org
+  vamp-darkweb-intel v1.0 — Threat Intelligence CLI
+  Targets: 2 | Sources: ThreatFox · URLhaus · GreyNoise · Shodan · OTX · RansomLook
+  ────────────────────────────────────────────────────────────
+
+  Target: 192.0.2.47 (IP)
+  ┌─────────────────────────────────────────────────────────┐
+  │  [HIGH]      GreyNoise: malicious scanner (Mirai botnet) │
+  │  [MEDIUM]    ThreatFox: C2 indicator (confidence 62%)    │
+  │  [INFO]      Shodan InternetDB: ports 22/80/443/8080     │
+  │  [HIGH] ★   CORRELATION: ThreatFox + GreyNoise agree    │
+  │              → Escalated: MEDIUM → HIGH (2 sources)      │
+  └─────────────────────────────────────────────────────────┘
+
+  Target: malware-sample.example.org (Domain)
+  ┌─────────────────────────────────────────────────────────┐
+  │  [CRITICAL]  ThreatFox: active C2 (AgentTesla RAT)      │
+  │  [HIGH]      URLhaus: malware distribution confirmed     │
+  │  [HIGH]      OTX: 12 threat intelligence pulses          │
+  │  [CRITICAL] ★ CORRELATION: 3 independent sources agree  │
+  │               → Escalated: HIGH → CRITICAL               │
+  └─────────────────────────────────────────────────────────┘
+
+  ────────────────────────────────────────────────────────────
+  Targets: 2 | Raw findings: 7 | Correlations triggered: 2
+  CRITICAL: 1 | HIGH: 3 | MEDIUM: 1 | INFO: 1
+  Exit code: 2
+```
+
+## Why vamp-darkweb-intel vs. DarkOwl · Recorded Future · SpiderFoot
+
+| Feature | vamp-darkweb-intel | DarkOwl | Recorded Future | SpiderFoot |
+|---------|:-----------------:|:-------:|:---------------:|:----------:|
+| No mandatory API keys | ✅ 8/10 sources free | ❌ paid | ❌ paid | ⚠️ free tier limited |
+| Multi-source correlation engine | ✅ | ❌ | ✅ | ❌ |
+| STIX 2.1 aligned output | ✅ | ✅ | ✅ | ❌ |
+| Self-hosted / no cloud dependency | ✅ | ❌ SaaS | ❌ SaaS | ✅ |
+| Ransomware victim check (RansomLook + Ransom.live) | ✅ | ⚠️ | ✅ | ⚠️ |
+| HIBP domain breach check | ✅ | ❌ | ❌ | ⚠️ |
+| CI/CD pipeline integration (exit codes) | ✅ | ❌ | ❌ | ❌ |
+| Bulk IOC file processing | ✅ | ⚠️ API | ✅ | ✅ |
+| MITRE ATT&CK technique mapping | ✅ | ⚠️ | ✅ | ❌ |
+| MalwareBazaar hash lookup | ✅ | ❌ | ⚠️ | ⚠️ |
+
+- **Correlation engine**: severity escalates automatically when two or more independent sources flag the same indicator — reduces single-source false positives while preserving genuine threats confirmed by independent intelligence.
+- **Zero-cost operation**: 8 of 10 sources require no API key whatsoever — full threat investigation without any budget or account registration.
+- **CI/CD native**: structured exit codes (0 / 1 / 2) enable direct integration into weekly scheduled threat monitoring pipelines without additional parsing.
+
+## Check Coverage
+
+| Check ID | Description | Standard | Severity |
+|----------|-------------|----------|----------|
+| DWI-001 | IOC confirmed in ThreatFox C2 / malware distribution feed | STIX 2.1 Indicator | CRITICAL |
+| DWI-002 | URL or domain in URLhaus active malware distribution list | STIX 2.1 Indicator | HIGH |
+| DWI-003 | File hash confirmed as malware in MalwareBazaar | STIX 2.1 Malware | CRITICAL |
+| DWI-004 | Organization or domain confirmed as ransomware victim | STIX 2.1 Incident | HIGH |
+| DWI-005 | IP classified malicious by GreyNoise (active threat actor) | ATT&CK T1595 | HIGH |
+| DWI-006 | IP flagged as active mass scanner by GreyNoise (RIOT: false) | ATT&CK T1595.001 | MEDIUM |
+| DWI-007 | AlienVault OTX pulse count ≥ 5 (active threat actor interest) | MITRE ATT&CK CTI | HIGH |
+| DWI-008 | Known CVEs on open ports per Shodan InternetDB | CVSS 3.1 / NVD | HIGH |
+| DWI-009 | Domain confirmed in Have I Been Pwned breach dataset | RGPD Art. 33 | HIGH |
+| DWI-010 | Multi-source correlation — same category flagged by ≥ 2 sources | STIX 2.1 Bundle | escalation |
+
+---
+
 ## Legal Notice
 
 Use exclusively on systems you own or for which you hold explicit written authorization from the system owner. VampSecure Studios assumes no liability for unauthorized use.
