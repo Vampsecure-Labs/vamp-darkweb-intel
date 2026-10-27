@@ -60,7 +60,7 @@ from rich.table import Table
 # Constantes
 # ---------------------------------------------------------------------------
 
-VERSION   = "1.1.0"
+VERSION   = "1.3.0"
 TOOL_NAME = "vamp-darkweb-intel"
 
 _TIMEOUT = 12  # segundos por petición
@@ -765,6 +765,52 @@ def _to_json(results: list[TargetResult]) -> str:
     return json.dumps(out, indent=2, ensure_ascii=False)
 
 
+def _to_stix(results: list[TargetResult]) -> str:
+    """
+    Exporta los resultados como un bundle STIX 2.1 (un indicador por objetivo
+    con hallazgos). Compatible con MISP, OpenCTI y TheHive. Solo stdlib.
+    """
+    import uuid as _uuid
+    from datetime import datetime as _dt, timezone as _tz
+    now = _dt.now(_tz.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    _pattern = {
+        "domain": lambda v: f"[domain-name:value = '{v}']",
+        "ip":     lambda v: f"[ipv4-addr:value = '{v}']",
+        "url":    lambda v: f"[url:value = '{v}']",
+        "hash":   lambda v: f"[file:hashes.'SHA-256' = '{v}']",
+        "email":  lambda v: f"[email-addr:value = '{v}']",
+    }
+    objects: list[dict] = []
+    for r in results:
+        if not r.findings:
+            continue
+        valor = r.target.replace("'", "")
+        patt = _pattern.get(r.target_type, _pattern["domain"])(valor)
+        cats = sorted({f.category for f in r.findings if f.category})
+        desc = "; ".join(f"[{f.severity}] {f.source}: {f.name}" for f in r.findings[:20])
+        objects.append({
+            "type": "indicator",
+            "spec_version": "2.1",
+            "id": f"indicator--{_uuid.uuid4()}",
+            "created": now,
+            "modified": now,
+            "name": f"{r.target} ({r.summary_grade()})",
+            "description": desc,
+            "indicator_types": ["malicious-activity"],
+            "pattern": patt,
+            "pattern_type": "stix",
+            "pattern_version": "2.1",
+            "valid_from": now,
+            "labels": cats or ["suspicious"],
+        })
+    bundle = {
+        "type": "bundle",
+        "id": f"bundle--{_uuid.uuid4()}",
+        "objects": objects,
+    }
+    return json.dumps(bundle, indent=2, ensure_ascii=False)
+
+
 def _to_markdown(results: list[TargetResult]) -> str:
     lines: list[str] = [
         "# vamp-darkweb-intel — Informe de Threat Intelligence",
@@ -1029,6 +1075,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Exportar informe Markdown.")
     p.add_argument("--csv",  metavar="FILE", dest="out_csv",
                    help="Exportar resumen CSV.")
+    p.add_argument("--stix", metavar="FILE", dest="out_stix",
+                   help="Exportar bundle STIX 2.1 (MISP/OpenCTI/TheHive).")
     p.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     p.add_argument("--monitor", metavar="SEGUNDOS", type=int, default=0,
                    help="Polling continuo: re-escanear cada N segundos y alertar de nuevas "
@@ -1082,6 +1130,9 @@ def main() -> None:
     if args.out_html:
         Path(args.out_html).write_text(_to_html(results), encoding="utf-8")
         _console.print(f"[dim]→ HTML: {args.out_html}[/dim]")
+    if getattr(args, "out_stix", None):
+        Path(args.out_stix).write_text(_to_stix(results), encoding="utf-8")
+        _console.print(f"[dim]→ STIX 2.1: {args.out_stix}[/dim]")
 
     # Código de salida
     has_critical = any(r.critical() for r in results)

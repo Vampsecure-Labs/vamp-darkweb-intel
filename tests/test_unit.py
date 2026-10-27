@@ -280,3 +280,29 @@ class TestSourceShodanInternetDB:
         """Para objetivos que no son IPs, Shodan InternetDB devuelve lista vacía."""
         findings = vdi._source_shodan_internetdb("empresa.com", "domain")
         assert findings == []
+
+
+class TestStixExport:
+    """v1.3.0: exportación STIX 2.1 (claim 'STIX 2.1 aligned output')."""
+    def _res(self):
+        import vamp_darkweb_intel as m
+        r = m.TargetResult(target="evil.com", target_type="domain")
+        r.findings = [m.Finding(severity="CRITICAL", source="RansomLook",
+                                category="Ransomware", name="Víctima listada",
+                                detail="d", remediation="r")]
+        return r
+    def test_bundle_stix_21_valido(self):
+        import vamp_darkweb_intel as m, json
+        b = json.loads(m._to_stix([self._res()]))
+        assert b["type"] == "bundle" and b["id"].startswith("bundle--")
+        ind = b["objects"][0]
+        assert ind["type"] == "indicator" and ind["spec_version"] == "2.1"
+        assert ind["pattern_type"] == "stix" and ind["pattern"] == "[domain-name:value = 'evil.com']"
+    def test_ip_y_hash_patterns(self):
+        import vamp_darkweb_intel as m, json
+        ip = m.TargetResult(target="1.2.3.4", target_type="ip"); ip.findings = self._res().findings
+        h = m.TargetResult(target="abc123", target_type="hash"); h.findings = self._res().findings
+        p_ip = json.loads(m._to_stix([ip]))["objects"][0]["pattern"]
+        p_h = json.loads(m._to_stix([h]))["objects"][0]["pattern"]
+        assert "ipv4-addr:value = '1.2.3.4'" in p_ip
+        assert "file:hashes.'SHA-256'" in p_h

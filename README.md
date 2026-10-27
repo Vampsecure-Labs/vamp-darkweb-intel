@@ -315,6 +315,7 @@ Use exclusively on systems you own or for which you hold explicit written author
 
 | Version | Main changes |
 |---------|-------------|
+| v1.3.0 | STIX 2.1 bundle export (`--stix FILE`) — indicators per investigated target (domain/ip/url/hash/email), importable into MISP / OpenCTI / TheHive. The comparison table advertised 'STIX 2.1 aligned output'; the tool now produces it. |
 | v1.2 | Bilingual README (EN/ES) |
 | v1.1.0 | Monitor continuo |
 | v1.0 | Initial release — multi-source threat intelligence CLI with correlation engine |
@@ -625,6 +626,7 @@ Uso exclusivo en sistemas propios o para los que se dispone de autorización esc
 
 | Versión | Cambios principales |
 |---------|---------------------|
+| v1.3.0 | Exportación de bundle STIX 2.1 (`--stix FILE`) — indicadores por objetivo investigado (domain/ip/url/hash/email), importable en MISP / OpenCTI / TheHive. La tabla comparativa anunciaba 'STIX 2.1 aligned output'; la herramienta ahora lo produce. |
 | v1.2 | README bilingüe (EN/ES) |
 | v1.1.0 | Monitor continuo |
 | v1.0 | Release inicial — CLI de inteligencia de amenazas multi-fuente con motor de correlación |
