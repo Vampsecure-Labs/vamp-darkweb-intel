@@ -228,7 +228,7 @@ jobs:
 
 ```bash
 $ python3 vamp_darkweb_intel.py -t 192.0.2.47 -t malware-sample.example.org
-  vamp-darkweb-intel v1.2 — Threat Intelligence CLI
+  vamp-darkweb-intel v1.3.0 — Threat Intelligence CLI
   Targets: 2 | Sources: ThreatFox · URLhaus · GreyNoise · Shodan · OTX · RansomLook
   ────────────────────────────────────────────────────────────
 
@@ -539,7 +539,7 @@ jobs:
 
 ```bash
 $ python3 vamp_darkweb_intel.py -t 192.0.2.47 -t malware-muestra.ejemplo.org
-  vamp-darkweb-intel v1.2 — Threat Intelligence CLI
+  vamp-darkweb-intel v1.3.0 — Threat Intelligence CLI
   Objetivos: 2 | Fuentes: ThreatFox · URLhaus · GreyNoise · Shodan · OTX · RansomLook
   ────────────────────────────────────────────────────────────
 
