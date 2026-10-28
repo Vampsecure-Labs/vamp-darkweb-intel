@@ -60,7 +60,7 @@ from rich.table import Table
 # Constantes
 # ---------------------------------------------------------------------------
 
-VERSION   = "1.3.0"
+VERSION   = "1.3.1"
 TOOL_NAME = "vamp-darkweb-intel"
 
 _TIMEOUT = 12  # segundos por petición
