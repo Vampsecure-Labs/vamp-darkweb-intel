@@ -11,3 +11,6 @@ build/
 *.key
 *.pem
 .rotated-secrets.txt
+
+# Instrucciones internas de agente — no publicar
+CLAUDE.md
